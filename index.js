@@ -4,7 +4,21 @@ const {
     EmbedBuilder 
 } = require('discord.js');
 const axios = require('axios');
+const express = require('express'); // <-- AGGIUNTO EXPRESS
 require('dotenv').config();
+
+// --- CONFIGURAZIONE EXPRESS (Per tenere in vita il bot su Render) ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('🤖 Il bot sanzioni Roblox è attivo e funzionante!');
+});
+
+app.listen(PORT, () => {
+    console.log(`💻 Server Web avviato sulla porta ${PORT}`);
+});
+// ------------------------------------------------------------------
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -14,7 +28,6 @@ const AUTHORIZED_ROLE_ID = "1516018145117212733";
 // Funzione helper per ottenere l'ID e l'Avatar di Roblox dal Username
 async function getRobloxUserDetails(username) {
     try {
-        // 1. Ottieni l'ID utente dal Username
         const userRes = await axios.post('https://users.roblox.com/v1/usernames/users', {
             usernames: [username],
             excludeBannedUsers: false
@@ -26,9 +39,8 @@ async function getRobloxUserDetails(username) {
 
         const userId = userRes.data.data[0].id;
 
-        // 2. Ottieni l'avatar (bust/headshot)
         const avatarRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=180x180&format=Png&isCircular=false`);
-        const avatarUrl = avatarRes.data.data[0]?.imageUrl || "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-Png/180/180/AvatarHeadshot/Png/isCircular=false"; // fallback
+        const avatarUrl = avatarRes.data.data[0]?.imageUrl || "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-Png/180/180/AvatarHeadshot/Png/isCircular=false";
 
         return { userId, avatarUrl };
     } catch (err) {
@@ -44,8 +56,6 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    // --- CONTROLLO DEL RUOLO ---
-    // Verifichiamo se l'utente che esegue il comando ha il ruolo abilitato
     if (!interaction.member.roles.cache.has(AUTHORIZED_ROLE_ID)) {
         return interaction.reply({ 
             content: `❌ Non hai i permessi necessari (Ruolo richiesto) per utilizzare i comandi dello staff.`, 
@@ -53,20 +63,18 @@ client.on('interactionCreate', async interaction => {
         });
     }
 
-    // Se passa il controllo del ruolo, procediamo con l'esecuzione del comando
     await interaction.deferReply({ ephemeral: true });
 
     const robloxUser = interaction.options.getString('roblox_user');
     const motivazione = interaction.options.getString('motivazione');
-    const staffMember = interaction.user; // Chi esegue il comando
+    const staffMember = interaction.user;
 
-    // Recupera i dati e l'avatar da Roblox
     const robloxData = await getRobloxUserDetails(robloxUser);
     if (robloxData.error) {
         return interaction.editReply({ content: `❌ Errore: ${robloxData.error}` });
     }
 
-    const timestamp = `<t:${Math.floor(Date.now() / 1000)}:F>`; // Formato data Discord esteso
+    const timestamp = `<t:${Math.floor(Date.now() / 1000)}:F>`;
 
     try {
         if (interaction.commandName === 'ban') {
@@ -87,7 +95,6 @@ client.on('interactionCreate', async interaction => {
                 .setFooter({ text: `Sistema Moderazione RP` })
                 .setTimestamp();
 
-            // Crea un post nel canale Forum
             await forumChannel.threads.create({
                 name: `[BAN] ${robloxUser}`,
                 message: { embeds: [embed] }
@@ -112,7 +119,6 @@ client.on('interactionCreate', async interaction => {
                 .setFooter({ text: `Sistema Moderazione RP` })
                 .setTimestamp();
 
-            // Crea un post nel canale Forum
             await forumChannel.threads.create({
                 name: `[WARN] ${robloxUser}`,
                 message: { embeds: [embed] }
